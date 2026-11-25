@@ -6,7 +6,7 @@ export const b64url = (buffer) => Buffer.from(buffer).toString("base64url");
 export const random = (bytes = 32) => b64url(randomBytes(bytes));
 export const challengeOf = (verifier) => b64url(createHash("sha256").update(verifier).digest());
 
-const page = (title, body) => `<!doctype html><html lang="ko"><meta charset="utf-8"><title>달그락 도우미</title><body style="font:16px/1.7 system-ui,sans-serif;max-width:480px;margin:18vh auto;padding:0 24px;color:#1f1f1f"><h1 style="font-size:20px">${title}</h1><p>${body}</p></body></html>`;
+const page = (title, body) => `<!doctype html><html lang="ko"><meta charset="utf-8"><title>달그락 연결 앱</title><body style="font:16px/1.7 system-ui,sans-serif;max-width:480px;margin:18vh auto;padding:0 24px;color:#1f1f1f"><h1 style="font-size:20px">${title}</h1><p>${body}</p></body></html>`;
 
 /**
  * 127.0.0.1에서 로그인 결과를 한 번 받는다. 주소는 반드시 127.0.0.1이어야 하고
@@ -29,7 +29,7 @@ function open(path, port) {
       if (url.pathname !== path) { response.writeHead(404).end(); return; }
       const failed = url.searchParams.get("error");
       response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
-      response.end(failed ? page("연결하지 못했어요", "이 창을 닫고 달그락 도우미에서 다시 시도해주세요.") : page("연결됐어요", "이 창을 닫고 달그락 대장간으로 돌아가세요."));
+      response.end(failed ? page("연결하지 못했어요", "이 창을 닫고 달그락 연결 앱에서 다시 시도해주세요.") : page("연결됐어요", "이 창을 닫고 달그락 대장간으로 돌아가세요."));
       settle(url.searchParams);
       setTimeout(() => server.close(), 200);
     });

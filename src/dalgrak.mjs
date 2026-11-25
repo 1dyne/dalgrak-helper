@@ -25,7 +25,7 @@ export async function login({ print = console.log } = {}) {
   const meta = await json(await fetch(`${base}/.well-known/oauth-authorization-server`));
   const listener = await listenOnce({ path: "/callback", ports: [1466, 1467, 0] });
   try {
-    const client = await json(await fetch(meta.registration_endpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ client_name: "달그락 도우미", redirect_uris: [listener.redirectUri], token_endpoint_auth_method: "none" }) }));
+    const client = await json(await fetch(meta.registration_endpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ client_name: "달그락 연결 앱", redirect_uris: [listener.redirectUri], token_endpoint_auth_method: "none" }) }));
     const state = random();
     const verifier = random(32);
     const url = `${meta.authorization_endpoint}?${new URLSearchParams({ response_type: "code", client_id: client.client_id, redirect_uri: listener.redirectUri, code_challenge: challengeOf(verifier), code_challenge_method: "S256", state })}`;

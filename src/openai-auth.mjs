@@ -102,7 +102,7 @@ export async function login({ print = console.log } = {}) {
     if (saved.email) query.set("login_hint", saved.email);
   } else query.set("agent_name_hint", AGENT_NAME);
   const url = `${AUTHORIZE}?${query}`;
-  print("브라우저에서 ChatGPT 로그인 화면을 열었어요. 열리지 않으면 도우미를 다시 실행해주세요.");
+  print("브라우저에서 ChatGPT 로그인 화면을 열었어요. 열리지 않으면 연결 앱을 다시 실행해주세요.");
   openBrowser(url);
   let params;
   try { params = await withTimeout(listener.result, 5 * 60_000, "로그인을 기다리다 시간이 지났어요. 다시 시도해주세요."); }
@@ -142,7 +142,7 @@ export async function accessToken({ force = false } = {}) {
       if (error instanceof AuthError && dead.includes(error.code)) {
         // 등록(client_id)은 남기고 쓸 수 없는 토큰만 지운다. 다음 로그인이 그 등록을 다시 쓴다.
         write(FILE, { ...saved, access_token: null, refresh_token: null });
-        throw new AuthError("signed_out", "ChatGPT 연결이 만료됐어요. 도우미에서 다시 로그인해주세요.");
+        throw new AuthError("signed_out", "ChatGPT 연결이 만료됐어요. 연결 앱에서 다시 로그인해주세요.");
       }
       throw error;
     } finally { refreshing = null; }

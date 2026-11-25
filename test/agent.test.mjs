@@ -89,3 +89,19 @@ test("도구는 네임스페이스 하나로 묶인다", () => {
   assert.equal(ns.name, "dalgrak");
   assert.deepEqual(ns.tools[0], { type: "function", name: "get_project", description: "읽는다", parameters: tools[0].inputSchema, strict: false });
 });
+
+test("사진이 있으면 지금 한 말에 사진 조각을 붙이고, 없으면 요청 모양이 예전과 같다", async () => {
+  const { userContent } = await import("../src/agent.mjs");
+  assert.equal(userContent({ text: "안녕" }), "안녕");
+  assert.equal(userContent({ text: "안녕", images: [] }), "안녕");
+  const png = "data:image/png;base64,AAAA";
+  assert.deepEqual(userContent({ text: "이 부품이에요", images: [{ mediaType: "image/png", dataUrl: png }, { dataUrl: "https://example.com/x.png" }, { dataUrl: "data:text/html;base64,AAAA" }] }), [{ type: "input_text", text: "이 부품이에요" }, { type: "input_image", image_url: png }]);
+  assert.equal(userContent({ text: "넷", images: Array(5).fill({ dataUrl: png }) }).length, 4);
+  let body;
+  await runTurn({
+    job: { ...job, images: [{ mediaType: "image/png", dataUrl: png }] }, model: "m", instructions: "i", tools, getToken: async () => "t", callTool: async () => ({ ok: true, text: "" }), onDelta() {}, onStatus() {},
+    fetchImpl: async (_u, init) => { body = JSON.parse(init.body); return stream([{ type: "response.completed", response: { output: [{ type: "message", content: [{ type: "output_text", text: "봤어요" }] }] } }]); }
+  });
+  assert.deepEqual(body.input.at(-1), { role: "user", content: [{ type: "input_text", text: job.text }, { type: "input_image", image_url: png }] });
+  assert.deepEqual(body.input[0], { role: "assistant", content: "안녕하세요" });
+});

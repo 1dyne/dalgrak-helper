@@ -3,21 +3,27 @@ import { readFileSync } from "node:fs";
 import * as dalgrak from "../src/dalgrak.mjs";
 import * as openai from "../src/openai-auth.mjs";
 import { USAGE_URL } from "../src/agent.mjs";
-import { pickModel, serve, setModel } from "../src/relay.mjs";
+import { ENGINES, engine, pickModel, serve, setEngine, setModel } from "../src/relay.mjs";
+import { APP_NAME, autostartFile, removeFile, shortcutFile, writeFile } from "../src/launchers.mjs";
+import { INSTALL_HINT } from "../src/codex.mjs";
 import { listModels } from "../src/agent.mjs";
 import { configDir } from "../src/store.mjs";
 
 const { version } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const say = (text = "") => console.log(text);
 
-const HELP = `달그락 도우미 ${version}
+const HELP = `${APP_NAME} ${version}
 내 컴퓨터에서 돌면서, 내 ChatGPT 요금제로 달그락 대장간 대화를 이어줘요.
 
-  dalgrak-helper            연결이 없으면 로그인하고, 바로 시작해요
-  dalgrak-helper status     지금 연결 상태를 보여줘요
-  dalgrak-helper models     쓸 수 있는 모델을 보여줘요
-  dalgrak-helper model <이름>  쓸 모델을 정해요
-  dalgrak-helper logout     ChatGPT와 달그락 연결을 모두 끊어요
+  dalgrak-helper                   연결이 없으면 로그인하고, 바로 시작해요
+  dalgrak-helper status            지금 연결 상태를 보여줘요
+  dalgrak-helper models            쓸 수 있는 모델을 보여줘요
+  dalgrak-helper model <이름>      쓸 모델을 정해요
+  dalgrak-helper engine <responses|codex>
+                                   답을 만드는 방식을 정해요. codex는 내 컴퓨터에서 코드·파일 작업을 해요
+  dalgrak-helper install-shortcut  바탕화면에 두 번 눌러 켜는 바로가기를 만들어요
+  dalgrak-helper autostart <on|off> 컴퓨터에 로그인할 때 함께 켜지게 하거나 꺼요
+  dalgrak-helper logout            ChatGPT와 달그락 연결을 모두 끊어요
 
 로그인 정보는 이 컴퓨터의 ${configDir()} 에만 저장돼요.`;
 
@@ -42,7 +48,27 @@ async function main() {
   if (command === "status") {
     const d = dalgrak.link(); const o = openai.account();
     say(`달그락 대장간: ${d?.access_token ? `연결됨 (${d.server})` : "연결 안 됨"}`);
+    say(`답을 만드는 방식: ${engine()}`);
     say(`ChatGPT: ${openai.planEnabled(o) ? `연결됨${o.email ? ` (${o.email})` : ""} · 요금제 사용 허용` : "연결 안 됨"}`);
+    return;
+  }
+  if (command === "engine") {
+    if (!argument) return say(`지금 방식: ${engine()}\n바꾸려면: dalgrak-helper engine <${ENGINES.join("|")}>`);
+    if (!ENGINES.includes(argument)) throw new Error(`쓸 수 있는 방식은 ${ENGINES.join(", ")} 예요.`);
+    setEngine(argument);
+    say(argument === "codex" ? `다음부터 Codex로 코드·파일 작업을 해요. 만든 파일은 내 컴퓨터의 Dalgrak 폴더에 남아요.\n${INSTALL_HINT.replace("Codex가 설치돼 있지 않아요. ", "Codex가 아직 없다면 ")}` : "다음부터 일반 방식(대화와 설계)으로 답해요.");
+    return;
+  }
+  if (command === "install-shortcut") {
+    const path = writeFile(shortcutFile());
+    say(`바탕화면에 바로가기를 만들었어요: ${path}\n두 번 누르면 ${APP_NAME}이 켜져요.`);
+    return;
+  }
+  if (command === "autostart") {
+    if (argument !== "on" && argument !== "off") throw new Error("이렇게 써주세요: dalgrak-helper autostart on 또는 dalgrak-helper autostart off");
+    const file = autostartFile({ logDir: configDir() });
+    if (argument === "on") say(`컴퓨터에 로그인할 때 함께 켜지게 했어요: ${writeFile(file)}\n다음 로그인부터 적용돼요. 처음 한 번은 직접 켜서 로그인을 마쳐 주세요.`);
+    else say(removeFile(file) ? "함께 켜지지 않게 했어요." : "함께 켜지게 해 둔 것이 없어요.");
     return;
   }
   if (command === "logout") {
@@ -65,7 +91,7 @@ async function main() {
   if (command !== "start") { say(HELP); process.exitCode = 1; return; }
   await ensureLogins();
   const stop = new AbortController();
-  process.on("SIGINT", () => { say("\n도우미를 끕니다. 다시 켜면 이어서 대화할 수 있어요."); stop.abort(); process.exit(0); });
+  process.on("SIGINT", () => { say("\n연결 앱을 꺼요. 다시 켜면 이어서 대화할 수 있어요."); stop.abort(); process.exit(0); });
   await serve({ version, log: (line) => say(`[${new Date().toLocaleTimeString()}] ${line}`), signal: stop.signal });
 }
 

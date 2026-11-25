@@ -20,8 +20,8 @@ const FRIENDLY = {
   subscription_sharing_usage_unavailable: "지금은 ChatGPT 사용량을 확인할 수 없어요. 잠시 후 다시 보내주세요.",
   subscription_sharing_user_unavailable: "ChatGPT 계정 정보를 잠시 불러올 수 없어요. 잠시 후 다시 보내주세요.",
   subscription_sharing_user_not_eligible: "이 ChatGPT 계정이나 워크스페이스에서는 요금제 사용이 허용되지 않아요.",
-  subscription_sharing_invalid_user: "ChatGPT 연결을 확인하지 못했어요. 도우미에서 다시 로그인해주세요.",
-  signed_out: "ChatGPT 연결이 끊겼어요. 컴퓨터의 달그락 도우미에서 다시 로그인해주세요."
+  subscription_sharing_invalid_user: "ChatGPT 연결을 확인하지 못했어요. 연결 앱에서 다시 로그인해주세요.",
+  signed_out: "ChatGPT 연결이 끊겼어요. 컴퓨터의 달그락 연결 앱에서 다시 로그인해주세요."
 };
 export const friendly = (code, fallback) => FRIENDLY[code] ?? fallback ?? "답변을 만들지 못했어요. 잠시 후 다시 보내주세요.";
 
@@ -91,6 +91,17 @@ async function respond({ token, body, onDelta, fetchImpl, signal }) {
 const textOf = (output) => output.filter((item) => item.type === "message").flatMap((item) => item.content ?? []).filter((part) => part.type === "output_text").map((part) => part.text).join("");
 
 /**
+ * 지금 한 말. 사진이 없으면 글자 그대로(요청 모양이 예전과 같다). 사진이 있으면 글과 사진 조각의 배열.
+ * 사진 조각의 모양({ type: "input_image", image_url: "<data URL>" })은 Responses API의 일반 입력 형식이고,
+ * 요금제 사용 문서는 "모델이 받으면 글·사진·파일을 지원한다"고만 적는다. 실제 계정으로는 아직 확인하지 못했다.
+ */
+export function userContent(job) {
+  const images = (job.images ?? []).filter((image) => typeof image?.dataUrl === "string" && /^data:image\/(png|jpeg|webp|gif);base64,/.test(image.dataUrl)).slice(0, 3);
+  if (!images.length) return job.text;
+  return [{ type: "input_text", text: job.text }, ...images.map((image) => ({ type: "input_image", image_url: image.dataUrl }))];
+}
+
+/**
  * @param {{ job: {text:string, history:Array<{role:string,text:string}>, projectId:string|null, projectName:string|null, channel:string},
  *   model: string, instructions: string, tools: Array<object>, getToken: (o?:{force?:boolean})=>Promise<string>,
  *   callTool: (name:string, args:object)=>Promise<{ok:boolean,text:string}>, onDelta:(t:string)=>void, onStatus:(t:string)=>void,
@@ -100,7 +111,7 @@ const textOf = (output) => output.filter((item) => item.type === "message").flat
 export async function runTurn({ job, model, instructions, tools, getToken, callTool, onDelta, onStatus, fetchImpl = fetch, signal }) {
   const input = [
     ...job.history.filter((m) => m.text?.trim()).map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.text })),
-    { role: "user", content: job.text }
+    { role: "user", content: userContent(job) }
   ];
   const titles = new Map(tools.map((tool) => [tool.name, tool.title ?? tool.name]));
   const namespace = toNamespace(tools);
