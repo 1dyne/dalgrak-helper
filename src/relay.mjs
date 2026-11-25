@@ -71,6 +71,7 @@ export async function serve({ version, log = console.log, signal }) {
     try {
       const hello = { model: context.model, version, account: openai.account()?.email ?? null };
       const response = await dalgrak.call("/api/helper/poll", hello, { timeoutMs: 40_000 });
+      if (response.status === 404) throw Object.assign(new Error("이 달그락 대장간 서버는 아직 화면 안 대화(도우미)를 지원하지 않아요. 서버가 업데이트된 뒤 다시 켜주세요."), { code: "unsupported_server" });
       if (!response.ok) throw new Error(`poll ${response.status}`);
       failures = 0;
       const { job } = await response.json();
@@ -81,7 +82,13 @@ export async function serve({ version, log = console.log, signal }) {
       await handle(job, context, log);
     } catch (error) {
       if (signal?.aborted) break;
-      if (error?.code === "signed_out") { log(error.message); throw error; }
+      if (error?.code === "unsupported_server") { log(error.message); throw error; }
+      if (error?.code === "signed_out") {
+        // 도구 연결은 되는데 여기서만 거절되면, 로그인이 아니라 서버가 아직 이 기능을 모르는 것이다.
+        const toolsStillWork = await dalgrak.mcp.listTools().then(() => true, () => false);
+        const message = toolsStillWork ? "이 달그락 대장간 서버는 아직 화면 안 대화(도우미)를 지원하지 않아요. 서버가 업데이트된 뒤 다시 켜주세요." : error.message;
+        log(message); throw Object.assign(new Error(message), { code: toolsStillWork ? "unsupported_server" : "signed_out" });
+      }
       failures++;
       await sleep(Math.min(30_000, 1000 * 2 ** Math.min(failures, 5)));
     }

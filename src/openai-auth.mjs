@@ -16,7 +16,8 @@ const JWKS = `${ISSUER}/.well-known/jwks.json`;
 export const RESOURCE = "https://api.openai.com/v1";
 const SCOPE = "openid profile email offline_access resource.invoke chatgpt.tokens.use.direct";
 export const PLAN_SCOPE = "chatgpt.tokens.use.direct";
-export const AGENT_NAME = "Dalgrak Helper";
+// ChatGPT 설정의 연결 목록에 보이는 이름표. 사용자가 등록 화면에서 바꿀 수 있고, 역할과는 무관하다.
+export const AGENT_NAME = "Dalgrak Forge";
 const FILE = "openai.json";
 // 경로는 등록 때와 늘 같아야 한다. 포트만 바뀔 수 있다.
 const CALLBACK_PATH = "/auth/callback";
