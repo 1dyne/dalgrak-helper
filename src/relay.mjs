@@ -8,18 +8,24 @@ import { read, write } from "./store.mjs";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export async function pickModel() {
+/** 이 계정이 쓸 수 있는 모델 목록과, 따로 고르지 않았을 때 쓸 기본 모델 */
+export async function loadModels() {
   const preferred = process.env.DALGRAK_MODEL || read("settings.json")?.model;
   const models = await listModels(await openai.accessToken());
   if (!models.length) throw new TurnError("no_models", "이 ChatGPT 계정에서 쓸 수 있는 모델이 없어요.");
-  return (models.find((m) => m.slug === preferred) ?? models[0]).slug;
+  return { models, model: (models.find((m) => m.slug === preferred) ?? models[0]).slug };
 }
+export const pickModel = async () => (await loadModels()).model;
 
 export const setModel = (slug) => write("settings.json", { ...(read("settings.json") ?? {}), model: slug });
 
 async function report(jobId, events) {
   if (!events.length) return;
-  try { await dalgrak.call(`/api/helper/jobs/${jobId}`, { events }); } catch { /* 화면 전달 실패는 대화를 멈추지 않는다 */ }
+  // 답의 끝(done)이 전달되지 않으면 화면이 계속 기다린다. 몇 번 더 보낸다.
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try { const response = await dalgrak.call(`/api/helper/jobs/${jobId}`, { events }); if (response.ok || response.status === 404 || response.status === 400) return; } catch { /* 다시 */ }
+    await sleep(500 * 2 ** attempt);
+  }
 }
 
 async function handle(job, context, log) {
@@ -35,7 +41,8 @@ async function handle(job, context, log) {
   };
   try {
     const text = await runTurn({
-      job, model: context.model, tools: context.tools,
+      // 화면에서 고른 모델이 이 계정에서 쓸 수 있는 것이면 그걸 쓴다.
+      job, model: context.models.some((m) => m.slug === job.model) ? job.model : context.model, tools: context.tools,
       instructions: buildInstructions({ serverInstructions: context.serverInstructions, guide: context.guide, job }),
       getToken: openai.accessToken, callTool: dalgrak.mcp.callTool,
       onDelta: (delta) => push({ type: "delta", text: delta }),
@@ -58,7 +65,7 @@ export async function prepare(version) {
   const tools = await dalgrak.mcp.listTools();
   // 긴 사용 규칙은 한 번 읽어 매 턴의 지침에 넣는다. 모델이 "읽으러 가는 것"에 기대지 않는다.
   const guide = tools.some((tool) => tool.name === "dalgeurak_guide") ? (await dalgrak.mcp.callTool("dalgeurak_guide", {})).text : "";
-  return { serverInstructions: init.instructions ?? "", tools: tools.filter((tool) => tool.name !== "dalgeurak_guide"), guide, model: await pickModel() };
+  return { serverInstructions: init.instructions ?? "", tools: tools.filter((tool) => tool.name !== "dalgeurak_guide"), guide, ...(await loadModels()) };
 }
 
 export async function serve({ version, log = console.log, signal }) {
@@ -69,7 +76,7 @@ export async function serve({ version, log = console.log, signal }) {
   let failures = 0;
   while (!signal?.aborted) {
     try {
-      const hello = { model: context.model, version, account: openai.account()?.email ?? null };
+      const hello = { model: context.model, version, account: openai.account()?.email ?? null, models: context.models.slice(0, 40).map((m) => ({ slug: String(m.slug).slice(0, 80), name: String(m.name).slice(0, 80) })) };
       const response = await dalgrak.call("/api/helper/poll", hello, { timeoutMs: 40_000 });
       if (response.status === 404) throw Object.assign(new Error("이 달그락 대장간 서버는 아직 화면 안 대화(도우미)를 지원하지 않아요. 서버가 업데이트된 뒤 다시 켜주세요."), { code: "unsupported_server" });
       if (!response.ok) throw new Error(`poll ${response.status}`);
