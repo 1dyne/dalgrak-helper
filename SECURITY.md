@@ -39,10 +39,10 @@
 ## 버전을 정해 쓰기
 
 ```
-npx github:1dyne/dalgrak-helper#v0.4.0
+npx github:1dyne/dalgrak-helper#8c19c359abc688ece7033b46751e621fadf4819a
 ```
 
-`#v0.4.0`처럼 버전을 붙이면 그 버전의 코드만 받습니다. 새 버전은 [릴리스](https://github.com/1dyne/dalgrak-helper/releases)에서 무엇이 바뀌었는지 보고 올리세요. 서명된 설치 파일은 준비 중입니다.
+`#` 뒤의 긴 글자는 코드의 한 시점(커밋)을 가리키는 지문입니다. 이렇게 붙이면 저장소가 나중에 바뀌어도 그 시점의 코드만 받습니다(v0.4.0). 새 버전은 [바뀐 내용](https://github.com/1dyne/dalgrak-helper/commits/main)을 보고 올리세요. 이름표가 붙은 릴리스와 서명된 설치 파일은 준비 중입니다.
 
 ## 취약점 알리기
 

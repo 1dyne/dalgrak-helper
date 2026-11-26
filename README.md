@@ -85,7 +85,7 @@ dalgrak-helper engine responses # 원래대로
 
 설치하기 전에 [SECURITY.md](SECURITY.md)를 읽어 주세요. 이 앱이 무엇을 하고 무엇을 하지 않는지, 이 컴퓨터에 무엇이 남는지, 알고 있어야 할 위험을 적어 두었어요.
 
-- 버전을 정해 쓰기: `npx github:1dyne/dalgrak-helper#v0.4.0` (버전을 붙이지 않으면 그때의 최신 코드를 받아요)
+- 버전을 정해 쓰기: `npx github:1dyne/dalgrak-helper#8c19c359abc688ece7033b46751e621fadf4819a` (버전을 붙이지 않으면 그때의 최신 코드를 받아요)
 - 로그인 정보는 운영체제의 보안 저장소 열쇠로 잠가 둬요. 확인: `npx github:1dyne/dalgrak-helper status`
 - 검색에서 찾은 페이지를 직접 여는 기능은 기본으로 꺼져 있어요.
 
