@@ -91,8 +91,10 @@ export async function runClaudeTurn({ job, model, instructions, server, getDalgr
     const code = await Promise.race([exit, timeout]).catch((error) => { throw error?.code === "ENOENT" ? new TurnError("claude_missing", INSTALL_HINT) : error; }).finally(() => signal?.removeEventListener("abort", abort));
     if (!result || result.is_error || result.subtype !== "success") {
       const detail = String(result?.result ?? stderr).trim();
-      if (/log ?in|authenticat|credential|\/login/i.test(detail)) throw new TurnError("claude_signed_out", "Claude Code에 로그인돼 있지 않아요. 내 컴퓨터의 터미널에서 `claude`를 실행해 로그인한 뒤 다시 보내주세요.");
-      if (/limit|quota|overloaded|rate/i.test(detail)) throw new TurnError("claude_usage", "Claude 구독의 사용 한도에 닿았거나 잠시 붐벼요. 조금 뒤에 다시 보내주세요.");
+      // 무엇 때문인지 짐작만으로 단정하지 않는다. Claude Code가 한 말을 그대로 덧붙여, 다른 원인일 때 알아볼 수 있게 한다.
+      const said = detail ? ` (Claude Code의 말: ${detail.replace(/\s+/g, " ").slice(0, 200)})` : "";
+      if (/\/login|not logged in|invalid api key|authentication_error|oauth token|please log ?in|unauthorized/i.test(detail)) throw new TurnError("claude_signed_out", `Claude Code에 로그인돼 있지 않아요. 내 컴퓨터의 터미널에서 \`claude\`를 실행해 로그인한 뒤 다시 보내주세요.${said}`);
+      if (/usage limit|rate limit|quota|overloaded/i.test(detail)) throw new TurnError("claude_usage", `Claude 구독의 사용 한도에 닿았거나 잠시 붐벼요. 조금 뒤에 다시 보내주세요.${said}`);
       throw new TurnError("claude_failed", `Claude Code가 답을 끝내지 못했어요${detail ? ` (${detail.slice(0, 160)})` : code ? ` (종료 코드 ${code})` : ""}.`);
     }
     return streamed.trim() || String(result.result ?? "").trim();
