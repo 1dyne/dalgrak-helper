@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { TurnError } from "./agent.mjs";
+import { read } from "./store.mjs";
 
 // Claude Code 엔진: 이 컴퓨터에 깔려 있고 사용자가 직접 로그인해 둔 Claude Code를
 // 화면 없는 모드(claude -p)로 실행해 한 턴의 답을 받는다.
@@ -24,6 +25,10 @@ export const CLAUDE_MODELS = [
   { slug: "claude:haiku", name: "Claude Haiku (Claude Code)" }
 ];
 export const INSTALL_HINT = "Claude Code가 설치돼 있지 않아요. https://claude.com/claude-code 에서 설치하고 터미널에서 `claude`를 한 번 실행해 로그인하면, 달그락에서 내 Claude 구독으로 대화할 수 있어요.";
+// 웹 검색은 켜 두고, 찾은 페이지를 직접 여는 것(WebFetch)은 사용자가 켰을 때만 쓴다.
+// 바깥 글이 AI를 속여 엉뚱한 일을 시키는 길을 좁히기 위해서다. 켜기: dalgrak-helper web on
+export const webReadOn = () => process.env.DALGRAK_WEB_READ === "on" || read("settings.json")?.webRead === true;
+const webTools = () => (webReadOn() ? "WebSearch,WebFetch" : "WebSearch");
 export const isClaudeModel = (slug) => typeof slug === "string" && slug.startsWith(CLAUDE_PREFIX);
 const bin = () => process.env.DALGRAK_CLAUDE_BIN || "claude";
 const windows = process.platform === "win32";
@@ -45,7 +50,7 @@ export function promptOf(job) {
 
 export function claudeArgs({ model, promptFile, mcpFile }) {
   const alias = String(model ?? "").slice(CLAUDE_PREFIX.length);
-  return ["-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--append-system-prompt-file", promptFile, "--mcp-config", mcpFile, "--strict-mcp-config", "--tools", "WebSearch,WebFetch", "--allowedTools", "mcp__dalgrak,WebSearch,WebFetch", "--no-session-persistence", ...(alias && alias !== "default" ? ["--model", alias] : [])];
+  return ["-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--append-system-prompt-file", promptFile, "--mcp-config", mcpFile, "--strict-mcp-config", "--tools", webTools(), "--allowedTools", `mcp__dalgrak,${webTools()}`, "--no-session-persistence", ...(alias && alias !== "default" ? ["--model", alias] : [])];
 }
 
 const TURN_TIMEOUT_MS = 20 * 60_000;
@@ -59,7 +64,7 @@ export async function runClaudeTurn({ job, model, instructions, server, getDalgr
   // 나만 읽을 수 있는 임시 파일로 건네고, 턴이 끝나면 지운다.
   const dir = mkdtempSync(join(tmpdir(), "dalgrak-claude-"));
   const promptFile = join(dir, "instructions.md"); const mcpFile = join(dir, "mcp.json");
-  writeFileSync(promptFile, `${instructions}\n\n# 이 대화의 작업 방식\n- 달그락 대장간 도구(mcp__dalgrak__…)와 웹 검색(WebSearch, WebFetch)만 쓸 수 있어요. 이 컴퓨터의 파일을 읽거나 고치거나 명령을 실행하지 않아요.\n- 설계 결과는 말로만 하지 말고 반드시 달그락 도구로 기록해요.`, { mode: 0o600 });
+  writeFileSync(promptFile, `${instructions}\n\n# 이 대화의 작업 방식\n- 달그락 대장간 도구(mcp__dalgrak__…)와 웹 검색만 쓸 수 있어요. 이 컴퓨터의 파일을 읽거나 고치거나 명령을 실행하지 않아요.\n- 설계 결과는 말로만 하지 말고 반드시 달그락 도구로 기록해요.`, { mode: 0o600 });
   writeFileSync(mcpFile, JSON.stringify({ mcpServers: { dalgrak: { type: "http", url: `${server}/api/mcp`, headers: { Authorization: `Bearer ${await getDalgrakToken()}` } } } }), { mode: 0o600 });
   let streamed = ""; let result = null; let stderr = ""; let timer;
   try {

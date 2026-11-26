@@ -7,7 +7,8 @@ import { ENGINES, engine, loadModels, serve, setEngine, setModel } from "../src/
 import { claudeAvailable } from "../src/claude-code.mjs";
 import { APP_NAME, autostartFile, removeFile, shortcutFile, writeFile } from "../src/launchers.mjs";
 import { INSTALL_HINT } from "../src/codex.mjs";
-import { configDir } from "../src/store.mjs";
+import { configDir, read as readSetting, storageKind, write as writeSetting } from "../src/store.mjs";
+import { webReadOn } from "../src/claude-code.mjs";
 
 const { version } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const say = (text = "") => console.log(text);
@@ -18,6 +19,7 @@ const HELP = `${APP_NAME} ${version}
   dalgrak-helper                   연결이 없으면 로그인하고, 바로 시작해요
   dalgrak-helper status            지금 연결 상태를 보여줘요
   dalgrak-helper models            쓸 수 있는 모델을 보여줘요 (ChatGPT 요금제, Claude Code)
+  dalgrak-helper web on|off        Claude가 찾은 웹 페이지를 직접 열어 읽게 할지 (기본: 꺼짐, 검색만)
   dalgrak-helper connect chatgpt   ChatGPT 요금제도 연결해요 (Claude Code만 쓰고 있을 때)
   dalgrak-helper model <이름>      쓸 모델을 정해요
   dalgrak-helper engine <responses|codex>
@@ -55,6 +57,8 @@ async function main() {
     const d = dalgrak.link(); const o = openai.account();
     say(`달그락 대장간: ${d?.access_token ? `연결됨 (${d.server})` : "연결 안 됨"}`);
     say(`답을 만드는 방식: ${engine()}`);
+    say(`로그인 정보 보관: ${storageKind()}`);
+    say(`찾은 웹 페이지 직접 열기: ${webReadOn() ? "켜짐" : "꺼짐 (검색만 해요. 켜려면 dalgrak-helper web on)"}`);
     say(`Claude Code: ${claudeAvailable() ? "이 컴퓨터에 있어요 (화면에서 Claude 모델을 고르면 내 Claude 구독으로 답해요)" : "없음"}`);
     say(`ChatGPT: ${openai.planEnabled(o) ? `연결됨${o.email ? ` (${o.email})` : ""} · 요금제 사용 허용` : "연결 안 됨"}`);
     return;
@@ -83,6 +87,11 @@ async function main() {
     dalgrak.logout();
     say(revoked ? "연결을 모두 끊었어요." : `이 컴퓨터의 로그인 정보는 지웠지만, ChatGPT 쪽 해제는 확인하지 못했어요. ChatGPT 설정에서 '${openai.AGENT_NAME}' 연결을 끊어주세요.`);
     return;
+  }
+  if (command === "web") {
+    if (argument !== "on" && argument !== "off") throw new Error("이렇게 써주세요: dalgrak-helper web on 또는 dalgrak-helper web off");
+    writeSetting("settings.json", { ...(readSetting("settings.json") ?? {}), webRead: argument === "on" });
+    return say(argument === "on" ? "이제 Claude가 검색에서 찾은 페이지를 직접 열어 읽을 수 있어요. 바깥 글에 속아 엉뚱한 일을 할 위험이 조금 늘어요. 끄려면: dalgrak-helper web off" : "이제 검색만 하고 페이지를 직접 열지는 않아요.");
   }
   if (command === "connect") {
     if (argument !== "chatgpt") throw new Error("이렇게 써주세요: dalgrak-helper connect chatgpt");

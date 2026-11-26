@@ -1,0 +1,28 @@
+# 버전 꼬리표(v*)를 올리면 시험을 돌리고 npm에 출처 증명(provenance)과 함께 올린다.
+# 저장소 설정의 Secrets에 NPM_TOKEN이 있어야 한다. 없으면 시험과 릴리스 노트만 만든다.
+name: release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+  id-token: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - run: npm test
+      - name: 릴리스 노트 만들기
+        run: gh release create "$GITHUB_REF_NAME" --generate-notes --verify-tag || true
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: npm에 올리기 (NPM_TOKEN이 있을 때만)
+        if: ${{ env.NODE_AUTH_TOKEN != '' }}
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

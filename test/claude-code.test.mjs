@@ -27,8 +27,13 @@ test("runs a turn: rules by file, Dalgrak tools only, nothing of the token on th
   assert.deepEqual(seen.mcp.mcpServers.dalgrak, { type: "http", url: "https://dalgrak.test/api/mcp", headers: { Authorization: "Bearer tok-123" } });
   assert.ok(!seen.args.join(" ").includes("tok-123"));
   // 기본 도구는 웹 검색·읽기만. 파일 쓰기와 명령 실행은 없다.
-  assert.equal(seen.args[seen.args.indexOf("--tools") + 1], "WebSearch,WebFetch");
-  assert.equal(seen.args[seen.args.indexOf("--allowedTools") + 1], "mcp__dalgrak,WebSearch,WebFetch");
+  // 기본은 웹 검색만. 찾은 페이지를 직접 여는 것은 사용자가 켰을 때만.
+  assert.equal(seen.args[seen.args.indexOf("--tools") + 1], "WebSearch");
+  assert.equal(seen.args[seen.args.indexOf("--allowedTools") + 1], "mcp__dalgrak,WebSearch");
+  process.env.DALGRAK_WEB_READ = "on";
+  await turn();
+  assert.equal(JSON.parse(readFileSync(log, "utf8")).args.includes("WebSearch,WebFetch"), true);
+  delete process.env.DALGRAK_WEB_READ;
   assert.equal(seen.args[seen.args.indexOf("--model") + 1], "sonnet");
   assert.ok(seen.args.includes("--strict-mcp-config") && seen.args.includes("--no-session-persistence"));
   assert.match(seen.stdin, /지금까지의 대화[\s\S]*사용자: 안녕[\s\S]*이번 말\n저울을 만들고 싶어요/);

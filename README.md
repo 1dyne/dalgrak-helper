@@ -81,6 +81,14 @@ dalgrak-helper engine responses # 원래대로
 - Codex가 명령 실행 허락을 물으면 이 앱은 대신 답하지 못하고 거절해요. 같은 이유예요.
 - Codex 연결은 가짜 Codex로만 시험했어요. 실제 Codex와는 아직 맞춰 보지 못했어요. 안 되면 오류 문구를 알려 주세요.
 
+## 보안
+
+설치하기 전에 [SECURITY.md](SECURITY.md)를 읽어 주세요. 이 앱이 무엇을 하고 무엇을 하지 않는지, 이 컴퓨터에 무엇이 남는지, 알고 있어야 할 위험을 적어 두었어요.
+
+- 버전을 정해 쓰기: `npx github:1dyne/dalgrak-helper#v0.4.0` (버전을 붙이지 않으면 그때의 최신 코드를 받아요)
+- 로그인 정보는 운영체제의 보안 저장소 열쇠로 잠가 둬요. 확인: `npx github:1dyne/dalgrak-helper status`
+- 검색에서 찾은 페이지를 직접 여는 기능은 기본으로 꺼져 있어요.
+
 ## 무엇이 어디로 가나요
 
 ```
