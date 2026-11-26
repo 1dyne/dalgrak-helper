@@ -36,6 +36,8 @@ export function toNamespace(tools) {
   };
 }
 
+const ROOM_NAMES = { hwlead: "하드웨어", hw: "전자회로", sw: "소프트웨어", me: "기구설계", id: "제품 디자인" };
+
 export function buildInstructions({ serverInstructions, guide, job }) {
   return [
     "너는 달그락 대장간 화면 안에서 사용자와 직접 대화하는 달그락 팀이다. 사용자는 하드웨어를 처음 만드는 비개발자일 수 있다. 사용자는 네가 제시하는 흐름을 따라가며 확인·승인·구매·조립·측정만 하면 되어야 한다.",
@@ -49,7 +51,7 @@ export function buildInstructions({ serverInstructions, guide, job }) {
     job.projectId
       ? `지금 열려 있는 달그락 프로젝트 ID: ${job.projectId}${job.projectName ? ` (${job.projectName})` : ""}. 모든 도구 호출에 이 ID를 쓴다. 이 대화의 첫 도구 호출 전에 get_project로 현재 단계와 다음 할 일을 확인한다.`
       : "지금은 열린 프로젝트가 없다. 사용자가 만들고 싶은 것을 말하면 create_project로 새 프로젝트를 만들고 이어간다. 인사나 질문뿐이면 프로젝트를 만들지 않는다.",
-    job.channel && !["main", "chief"].includes(job.channel) ? `이 대화는 ${job.channel.toUpperCase()} 달그락의 작업실이다. 그 역할로만 답한다.` : "이 대화는 메인 방이다. 대장 달그락으로서 전체 흐름을 이끈다.",
+    job.channel && !["main", "chief"].includes(job.channel) ? `이 대화는 ${ROOM_NAMES[job.channel] ?? job.channel} 달그락의 대장간이다(도구에 쓰는 id는 "${job.channel}"). 그 역할로만 답한다.` : "이 대화는 메인 방이다. 대장 달그락으로서 전체 흐름을 이끈다.",
     serverInstructions ? `# 달그락 대장간 서버 안내\n${serverInstructions}` : "",
     guide ? `# 달그락 대장간 사용 규칙\n${guide}` : ""
   ].filter(Boolean).join("\n\n");
