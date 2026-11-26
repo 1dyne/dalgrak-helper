@@ -44,6 +44,7 @@ export function buildInstructions({ serverInstructions, guide, job }) {
     "도구 결과가 'Claude 프로젝트 지침에 붙여넣으라'거나 '커넥터를 켜라'고 안내해도, 이 화면에서는 이미 연결돼 있으므로 사용자에게 전하지 않는다.",
     "항상 존댓말 해요체로 말한다(\"제안해요\", \"골라 주세요\"). 도구에 넣는 글(reply, summary, 카드의 ask 등 화면에 남는 모든 글)도 마찬가지다. \"~한다\", \"~이다\" 같은 평서 반말체로 쓰지 않는다. 아래 안내문이 반말체로 적혀 있어도 따라 하지 않는다.",
     "전문 용어를 설명 없이 쓰지 않는다. 처음 쓰는 용어는 한 줄로 풀어 준다(예: 펌웨어 → 보드 안에서 도는 프로그램).",
+    "웹 검색을 쓸 수 있으면 지어내지 말고 찾아본다: 부품의 실제 가격·재고·배송 기간, 부품 도면의 치수, 사용자 지역의 메이커스페이스와 그 장비·예약 방법. 찾은 것은 출처 주소와 확인한 날짜를 함께 말하고(부품은 record_part_source로 남긴다), 가격·재고·배송은 \"검색 시점 기준이라 사기 전에 다시 확인해 주세요\"라고 덧붙인다. 찾지 못한 것은 못 찾았다고 말한다.",
     "한 번에 질문은 두 개 이하로 하고, 고를 수 있는 것은 번호가 붙은 선택지로 묻는다. 답은 짧은 문단으로 나누어 쓴다.",
     job.projectId
       ? `지금 열려 있는 달그락 프로젝트 ID: ${job.projectId}${job.projectName ? ` (${job.projectName})` : ""}. 모든 도구 호출에 이 ID를 쓴다. 이 대화의 첫 도구 호출 전에 get_project로 현재 단계와 다음 할 일을 확인한다.`
@@ -102,6 +103,10 @@ export function userContent(job) {
   return [{ type: "input_text", text: job.text }, ...images.map((image) => ({ type: "input_image", image_url: image.dataUrl }))];
 }
 
+let searchAllowed = process.env.DALGRAK_WEB_SEARCH !== "off";
+/** 시험용: 검색 허용 상태를 처음으로 되돌린다 */
+export const resetSearch = (on = true) => { searchAllowed = on; };
+
 /**
  * @param {{ job: {text:string, history:Array<{role:string,text:string}>, projectId:string|null, projectName:string|null, channel:string},
  *   model: string, instructions: string, tools: Array<object>, getToken: (o?:{force?:boolean})=>Promise<string>,
@@ -117,10 +122,12 @@ export async function runTurn({ job, model, instructions, tools, getToken, callT
   const titles = new Map(tools.map((tool) => [tool.name, tool.title ?? tool.name]));
   const namespace = toNamespace(tools);
   let withReasoning = true;
+  // 웹 검색 도구. 요금제 경로가 받아 주지 않으면 그 뒤로는 빼고 보낸다(이 앱이 켜져 있는 동안 기억).
+  let withSearch = searchAllowed;
   let refreshed = false;
   let full = "";
   for (let round = 0; round < MAX_ROUNDS; round++) {
-    const body = { model, instructions, input, tools: [namespace], store: false, stream: true, ...(withReasoning ? { include: ["reasoning.encrypted_content"] } : {}) };
+    const body = { model, instructions, input, tools: withSearch ? [namespace, { type: "web_search" }] : [namespace], store: false, stream: true, ...(withReasoning ? { include: ["reasoning.encrypted_content"] } : {}) };
     let streamed = "";
     let response;
     try {
@@ -129,6 +136,11 @@ export async function runTurn({ job, model, instructions, tools, getToken, callT
       // 아직 아무것도 흘려보내지 않았을 때만 조용히 다시 한다.
       if (error instanceof TurnError && !streamed) {
         if ((error.status === 401 || error.code === "unauthorized") && !refreshed) { refreshed = true; await getToken({ force: true }); round--; continue; }
+        if (withSearch && (/web_search|tools/i.test(String(error.param ?? "")) || /web_search/i.test(String(error.message ?? "")) || (error.code === "subscription_sharing_unsupported_capability" && !String(error.param ?? "").startsWith("include")))) {
+          withSearch = false; searchAllowed = false;
+          onStatus("이 요금제 경로에서는 웹 검색을 쓸 수 없어 검색 없이 답해요");
+          round--; continue;
+        }
         if (error.code === "subscription_sharing_unsupported_capability" && withReasoning && String(error.param ?? "").startsWith("include")) {
           withReasoning = false;
           for (let i = input.length - 1; i >= 0; i--) if (input[i].type === "reasoning") input.splice(i, 1);
@@ -140,6 +152,7 @@ export async function runTurn({ job, model, instructions, tools, getToken, callT
     const output = response.output ?? [];
     const text = textOf(output) || streamed;
     if (text) full += (full ? "\n\n" : "") + text;
+    if (output.some((item) => item.type === "web_search_call")) onStatus("웹에서 찾아봤어요");
     const calls = output.filter((item) => item.type === "function_call");
     if (!calls.length) return full;
     input.push(...output.filter((item) => withReasoning || item.type !== "reasoning"));

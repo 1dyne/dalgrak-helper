@@ -105,3 +105,20 @@ test("사진이 있으면 지금 한 말에 사진 조각을 붙이고, 없으�
   assert.deepEqual(body.input.at(-1), { role: "user", content: [{ type: "input_text", text: job.text }, { type: "input_image", image_url: png }] });
   assert.deepEqual(body.input[0], { role: "assistant", content: "안녕하세요" });
 });
+
+test("웹 검색 도구를 함께 보내고, 요금제 경로가 거절하면 빼고 다시 보낸다", async () => {
+  const { resetSearch } = await import("../src/agent.mjs");
+  resetSearch(true);
+  const bodies = [];
+  const ok = () => stream([{ type: "response.output_text.delta", delta: "네" }, { type: "response.completed", response: { output: [{ type: "message", content: [{ type: "output_text", text: "네" }] }] } }]);
+  const refuse = () => new Response(JSON.stringify({ error: { code: "invalid_request_error", message: "Unsupported tool type: web_search", param: "tools[1]" } }), { status: 400, headers: { "content-type": "application/json" } });
+  const replies = [refuse(), ok(), ok()];
+  const run = () => runTurn({ job, model: "m", instructions: "i", tools, getToken: async () => "tok", callTool: async () => ({ ok: true, text: "" }), onDelta: () => {}, onStatus: () => {}, fetchImpl: async (_url, init) => { bodies.push(JSON.parse(init.body)); return replies.shift(); } });
+  assert.equal(await run(), "네");
+  assert.deepEqual(bodies[0].tools[1], { type: "web_search" });
+  assert.equal(bodies[1].tools.length, 1);
+  // 한 번 거절당하면 다음 턴부터는 처음부터 빼고 보낸다
+  assert.equal(await run(), "네");
+  assert.equal(bodies[2].tools.length, 1);
+  resetSearch(true);
+});

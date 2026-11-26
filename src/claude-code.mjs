@@ -12,8 +12,9 @@ import { TurnError } from "./agent.mjs";
 // 달그락 도구를 MCP로 꽂고(--mcp-config), 사용자의 말을 넘긴다. 답은 사용자의 Claude
 // 구독으로 Claude Code가 만든다.
 //
-// 대화·설계 전용이라 Claude Code의 기본 도구(파일 쓰기, 명령 실행)는 끄고(--tools ""),
-// 달그락 도구만 허락한다. 그래서 이 방식은 사용자의 컴퓨터에서 아무것도 바꾸지 않는다.
+// 대화·설계 전용이라 Claude Code의 기본 도구 가운데 웹 검색·웹 읽기만 남기고(--tools),
+// 파일 쓰기와 명령 실행은 끈다. 그래서 이 방식은 사용자의 컴퓨터에서 아무것도 바꾸지 않는다.
+// 검색은 부품의 실제 가격·재고·배송, 도면 치수, 근처 메이커스페이스를 찾는 데 쓴다.
 
 export const CLAUDE_PREFIX = "claude:";
 export const CLAUDE_MODELS = [
@@ -44,7 +45,7 @@ export function promptOf(job) {
 
 export function claudeArgs({ model, promptFile, mcpFile }) {
   const alias = String(model ?? "").slice(CLAUDE_PREFIX.length);
-  return ["-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--append-system-prompt-file", promptFile, "--mcp-config", mcpFile, "--strict-mcp-config", "--tools", "", "--allowedTools", "mcp__dalgrak", "--no-session-persistence", ...(alias && alias !== "default" ? ["--model", alias] : [])];
+  return ["-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--append-system-prompt-file", promptFile, "--mcp-config", mcpFile, "--strict-mcp-config", "--tools", "WebSearch,WebFetch", "--allowedTools", "mcp__dalgrak,WebSearch,WebFetch", "--no-session-persistence", ...(alias && alias !== "default" ? ["--model", alias] : [])];
 }
 
 const TURN_TIMEOUT_MS = 20 * 60_000;
@@ -58,7 +59,7 @@ export async function runClaudeTurn({ job, model, instructions, server, getDalgr
   // 나만 읽을 수 있는 임시 파일로 건네고, 턴이 끝나면 지운다.
   const dir = mkdtempSync(join(tmpdir(), "dalgrak-claude-"));
   const promptFile = join(dir, "instructions.md"); const mcpFile = join(dir, "mcp.json");
-  writeFileSync(promptFile, `${instructions}\n\n# 이 대화의 작업 방식\n- 달그락 대장간 도구(mcp__dalgrak__…)만 쓸 수 있어요. 이 컴퓨터의 파일을 읽거나 고치거나 명령을 실행하지 않아요.\n- 설계 결과는 말로만 하지 말고 반드시 달그락 도구로 기록해요.`, { mode: 0o600 });
+  writeFileSync(promptFile, `${instructions}\n\n# 이 대화의 작업 방식\n- 달그락 대장간 도구(mcp__dalgrak__…)와 웹 검색(WebSearch, WebFetch)만 쓸 수 있어요. 이 컴퓨터의 파일을 읽거나 고치거나 명령을 실행하지 않아요.\n- 설계 결과는 말로만 하지 말고 반드시 달그락 도구로 기록해요.`, { mode: 0o600 });
   writeFileSync(mcpFile, JSON.stringify({ mcpServers: { dalgrak: { type: "http", url: `${server}/api/mcp`, headers: { Authorization: `Bearer ${await getDalgrakToken()}` } } } }), { mode: 0o600 });
   let streamed = ""; let result = null; let stderr = ""; let timer;
   try {
@@ -81,7 +82,7 @@ export async function runClaudeTurn({ job, model, instructions, server, getDalgr
         if (message.type === "stream_event" && !message.parent_tool_use_id) {
           const event = message.event;
           if (event?.type === "content_block_delta" && event.delta?.type === "text_delta" && event.delta.text) { streamed += event.delta.text; onDelta(event.delta.text); }
-          else if (event?.type === "content_block_start" && event.content_block?.type === "tool_use") { const name = String(event.content_block.name ?? "").replace(/^mcp__dalgrak__/, ""); onStatus(toolTitles.get(name) ?? name); }
+          else if (event?.type === "content_block_start" && event.content_block?.type === "tool_use") { const name = String(event.content_block.name ?? "").replace(/^mcp__dalgrak__/, ""); onStatus(name === "WebSearch" ? "웹에서 찾아보는 중" : name === "WebFetch" ? "찾은 페이지를 읽는 중" : toolTitles.get(name) ?? name); }
           else if (event?.type === "message_start" && streamed && !streamed.endsWith("\n\n")) { streamed += "\n\n"; onDelta("\n\n"); }
         } else if (message.type === "result") result = message;
       }
