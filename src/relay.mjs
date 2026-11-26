@@ -3,6 +3,7 @@ import * as dalgrak from "./dalgrak.mjs";
 import * as openai from "./openai-auth.mjs";
 import { read, write } from "./store.mjs";
 import { runCodexTurn } from "./codex.mjs";
+import { CLAUDE_MODELS, claudeAvailable, isClaudeModel, runClaudeTurn } from "./claude-code.mjs";
 
 // 달그락 서버에 "할 일 있나요?"를 계속 묻고, 일이 오면 이 컴퓨터에서 답을 만들어
 // 조금씩 올려보낸다. 나가는 연결만 쓰므로 공유기 설정이나 포트 개방이 필요 없다.
@@ -10,10 +11,11 @@ import { runCodexTurn } from "./codex.mjs";
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** 이 계정이 쓸 수 있는 모델 목록과, 따로 고르지 않았을 때 쓸 기본 모델 */
-export async function loadModels() {
+export async function loadModels({ hasClaude = claudeAvailable(), hasChatgpt = openai.planEnabled() } = {}) {
   const preferred = process.env.DALGRAK_MODEL || read("settings.json")?.model;
-  const models = await listModels(await openai.accessToken());
-  if (!models.length) throw new TurnError("no_models", "이 ChatGPT 계정에서 쓸 수 있는 모델이 없어요.");
+  // ChatGPT 요금제와 Claude Code 가운데 이 컴퓨터에서 쓸 수 있는 것을 모두 보여준다.
+  const models = [...(hasChatgpt ? await listModels(await openai.accessToken()) : []), ...(hasClaude ? CLAUDE_MODELS : [])];
+  if (!models.length) throw new TurnError("no_models", "쓸 수 있는 AI가 없어요. ChatGPT에 로그인하거나 Claude Code를 설치해주세요.");
   return { models, model: (models.find((m) => m.slug === preferred) ?? models[0]).slug };
 }
 export const pickModel = async () => (await loadModels()).model;
@@ -27,9 +29,11 @@ export const setEngine = (name) => write("settings.json", { ...(read("settings.j
  * 한 턴을 고른 엔진으로 한다. Codex가 없거나 아무 말도 하기 전에 실패하면, 그 턴만 일반 엔진으로 한다.
  * (이미 글이 흘러나온 뒤의 실패는 그대로 알린다 — 같은 말을 두 번 하게 하지 않는다.)
  */
-export async function answer({ job, context, version, onDelta, onStatus, log = () => {}, which = engine(), codexTurn = runCodexTurn, responsesTurn = runTurn }) {
+export async function answer({ job, context, version, onDelta, onStatus, log = () => {}, which = engine(), codexTurn = runCodexTurn, responsesTurn = runTurn, claudeTurn = runClaudeTurn }) {
   const model = context.models.some((m) => m.slug === job.model) ? job.model : context.model;
   const instructions = buildInstructions({ serverInstructions: context.serverInstructions, guide: context.guide, job });
+  // 화면에서 Claude를 골랐으면 이 컴퓨터의 Claude Code에게 맡긴다(사용자의 Claude 구독).
+  if (isClaudeModel(model)) return claudeTurn({ job, model, instructions, server: dalgrak.server(), getDalgrakToken: dalgrak.accessToken, toolTitles: new Map(context.tools.map((t) => [t.name, t.title ?? t.name])), onDelta, onStatus });
   const shared = { job, model, instructions, getToken: openai.accessToken, callTool: dalgrak.mcp.callTool, onDelta, onStatus };
   if (which === "codex") {
     try { return await codexTurn({ ...shared, version }); }
@@ -98,7 +102,7 @@ export async function serve({ version, log = console.log, signal }) {
   let failures = 0;
   while (!signal?.aborted) {
     try {
-      const hello = { model: context.model, version, account: openai.account()?.email ?? null, models: context.models.slice(0, 40).map((m) => ({ slug: String(m.slug).slice(0, 80), name: String(m.name).slice(0, 80) })) };
+      const hello = { model: context.model, version, account: openai.account()?.email ?? (context.models.some((m) => isClaudeModel(m.slug)) ? "Claude Code" : null), models: context.models.slice(0, 40).map((m) => ({ slug: String(m.slug).slice(0, 80), name: String(m.name).slice(0, 80) })) };
       const response = await dalgrak.call("/api/helper/poll", hello, { timeoutMs: 40_000 });
       if (response.status === 404) throw Object.assign(new Error("이 달그락 대장간 서버는 아직 화면 안 대화를 지원하지 않아요. 서버가 업데이트된 뒤 다시 켜주세요."), { code: "unsupported_server" });
       if (!response.ok) throw new Error(`poll ${response.status}`);

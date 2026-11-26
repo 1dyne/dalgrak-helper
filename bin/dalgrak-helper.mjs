@@ -3,10 +3,10 @@ import { readFileSync } from "node:fs";
 import * as dalgrak from "../src/dalgrak.mjs";
 import * as openai from "../src/openai-auth.mjs";
 import { USAGE_URL } from "../src/agent.mjs";
-import { ENGINES, engine, pickModel, serve, setEngine, setModel } from "../src/relay.mjs";
+import { ENGINES, engine, loadModels, serve, setEngine, setModel } from "../src/relay.mjs";
+import { claudeAvailable } from "../src/claude-code.mjs";
 import { APP_NAME, autostartFile, removeFile, shortcutFile, writeFile } from "../src/launchers.mjs";
 import { INSTALL_HINT } from "../src/codex.mjs";
-import { listModels } from "../src/agent.mjs";
 import { configDir } from "../src/store.mjs";
 
 const { version } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
@@ -17,7 +17,8 @@ const HELP = `${APP_NAME} ${version}
 
   dalgrak-helper                   연결이 없으면 로그인하고, 바로 시작해요
   dalgrak-helper status            지금 연결 상태를 보여줘요
-  dalgrak-helper models            쓸 수 있는 모델을 보여줘요
+  dalgrak-helper models            쓸 수 있는 모델을 보여줘요 (ChatGPT 요금제, Claude Code)
+  dalgrak-helper connect chatgpt   ChatGPT 요금제도 연결해요 (Claude Code만 쓰고 있을 때)
   dalgrak-helper model <이름>      쓸 모델을 정해요
   dalgrak-helper engine <responses|codex>
                                    답을 만드는 방식을 정해요. codex는 내 컴퓨터에서 코드·파일 작업을 해요
@@ -27,11 +28,16 @@ const HELP = `${APP_NAME} ${version}
 
 로그인 정보는 이 컴퓨터의 ${configDir()} 에만 저장돼요.`;
 
-async function ensureLogins() {
+async function ensureLogins({ wantChatgpt = false } = {}) {
   if (!dalgrak.link()?.access_token) {
     say("1/2 달그락 대장간에 연결해요.");
     await dalgrak.login({ print: say });
     say("달그락 대장간에 연결됐어요.\n");
+  }
+  // Claude Code가 깔려 있으면 ChatGPT 없이도 쓸 수 있다. ChatGPT 연결은 따로 청했을 때만 한다.
+  if (!openai.planEnabled() && !wantChatgpt && claudeAvailable()) {
+    say("이 컴퓨터의 Claude Code로 답해요(내 Claude 구독). ChatGPT 요금제도 함께 쓰려면: dalgrak-helper connect chatgpt\n");
+    return;
   }
   if (!openai.planEnabled()) {
     say("2/2 ChatGPT에 연결해요. 브라우저에서 'ChatGPT 요금제 사용'을 허용해주세요.");
@@ -49,6 +55,7 @@ async function main() {
     const d = dalgrak.link(); const o = openai.account();
     say(`달그락 대장간: ${d?.access_token ? `연결됨 (${d.server})` : "연결 안 됨"}`);
     say(`답을 만드는 방식: ${engine()}`);
+    say(`Claude Code: ${claudeAvailable() ? "이 컴퓨터에 있어요 (화면에서 Claude 모델을 고르면 내 Claude 구독으로 답해요)" : "없음"}`);
     say(`ChatGPT: ${openai.planEnabled(o) ? `연결됨${o.email ? ` (${o.email})` : ""} · 요금제 사용 허용` : "연결 안 됨"}`);
     return;
   }
@@ -77,10 +84,15 @@ async function main() {
     say(revoked ? "연결을 모두 끊었어요." : `이 컴퓨터의 로그인 정보는 지웠지만, ChatGPT 쪽 해제는 확인하지 못했어요. ChatGPT 설정에서 '${openai.AGENT_NAME}' 연결을 끊어주세요.`);
     return;
   }
+  if (command === "connect") {
+    if (argument !== "chatgpt") throw new Error("이렇게 써주세요: dalgrak-helper connect chatgpt");
+    await ensureLogins({ wantChatgpt: true });
+    return say("ChatGPT가 연결돼 있어요.");
+  }
   if (command === "models") {
     await ensureLogins();
-    const current = await pickModel();
-    for (const model of await listModels(await openai.accessToken())) say(`${model.slug === current ? "●" : " "} ${model.slug}  ${model.name}`);
+    const { models, model: current } = await loadModels();
+    for (const model of models) say(`${model.slug === current ? "●" : " "} ${model.slug}  ${model.name}`);
     return;
   }
   if (command === "model") {

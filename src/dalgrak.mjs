@@ -42,6 +42,7 @@ export async function login({ print = console.log } = {}) {
 }
 
 let refreshing = null;
+export async function accessToken(options) { return token(options); }
 async function token({ force = false } = {}) {
   const saved = link();
   if (!saved?.access_token) throw new DalgrakError("signed_out", "달그락 대장간에 연결돼 있지 않아요.");

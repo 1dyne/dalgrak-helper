@@ -49,6 +49,16 @@ npx github:1dyne/dalgrak-helper
 
 `npx`로 켰다면 `dalgrak-helper` 자리에 `npx github:1dyne/dalgrak-helper`를 써요.
 
+## Claude 구독으로 쓰기 (Claude Code)
+
+이 컴퓨터에 [Claude Code](https://claude.com/claude-code)가 깔려 있고 로그인돼 있으면, 달그락 화면의 모델 선택에 **Claude** 항목이 함께 떠요. 그걸 고르면 그 말은 내 Claude 구독으로 답해요.
+
+- 준비: Claude Code를 설치하고 터미널에서 `claude`를 한 번 실행해 로그인해요. 그게 전부예요.
+- ChatGPT가 없어도 돼요. Claude Code만 있으면 이 앱은 ChatGPT 로그인을 묻지 않아요. 둘 다 쓰려면 `npx github:1dyne/dalgrak-helper connect chatgpt`.
+- 이 앱은 Claude Code를 고치지 않고, Claude 로그인에 관여하지 않으며, 로그인 정보를 읽지 않아요. 내 컴퓨터의 Claude Code를 화면 없는 모드(`claude -p`)로 실행해 달그락의 규칙과 도구(MCP)를 붙이고 말을 넘길 뿐이에요.
+- 대화·설계 전용이에요. Claude Code의 파일 쓰기·명령 실행 도구는 꺼 두고 달그락 도구만 허락하므로, 내 컴퓨터의 파일은 건드리지 않아요.
+- 아직 안 되는 것: 사진 보기(붙인 사진은 이 방식에서 전달되지 않아요).
+
 ## 코드·파일 작업 맡기기 (Codex)
 
 보통은 대화와 설계만 해요. 곡면 하우징이나 출력 파일처럼 **코드를 실제로 돌려야 하는 일**은 Codex에게 맡길 수 있어요.

@@ -21,6 +21,7 @@ const FRIENDLY = {
   subscription_sharing_user_unavailable: "ChatGPT 계정 정보를 잠시 불러올 수 없어요. 잠시 후 다시 보내주세요.",
   subscription_sharing_user_not_eligible: "이 ChatGPT 계정이나 워크스페이스에서는 요금제 사용이 허용되지 않아요.",
   subscription_sharing_invalid_user: "ChatGPT 연결을 확인하지 못했어요. 연결 앱에서 다시 로그인해주세요.",
+  claude_missing: "Claude Code가 설치돼 있지 않아요. 내 컴퓨터에 Claude Code를 설치하고 로그인한 뒤 다시 보내주세요.",
   signed_out: "ChatGPT 연결이 끊겼어요. 컴퓨터의 달그락 연결 앱에서 다시 로그인해주세요."
 };
 export const friendly = (code, fallback) => FRIENDLY[code] ?? fallback ?? "답변을 만들지 못했어요. 잠시 후 다시 보내주세요.";
