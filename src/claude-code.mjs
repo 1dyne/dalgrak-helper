@@ -33,11 +33,13 @@ export const isClaudeModel = (slug) => typeof slug === "string" && slug.startsWi
 const bin = () => process.env.DALGRAK_CLAUDE_BIN || "claude";
 const windows = process.platform === "win32";
 // 윈도우의 claude는 .cmd라 셸을 거쳐야 실행된다. 셸을 거칠 때는 빈 값과 공백을 따옴표로 지킨다.
-const quote = (args) => (windows ? args.map((a) => (a === "" || /[\s"&|<>^]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a)) : args);
+const quote = (args) => args.map((a) => (a === "" || /[\s"&|<>^]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a));
+// 셸을 거칠 때는 명령과 인자를 한 줄로 만들어 넘긴다(인자를 따로 주면 Node가 경고를 찍는다).
+const launch = (args) => (windows ? [`${bin()} ${quote(args).join(" ")}`, []] : [bin(), args]);
 
 /** 이 컴퓨터에서 Claude Code를 쓸 수 있는가(설치 여부만 본다. 로그인은 Claude Code의 일이다) */
 export function claudeAvailable(spawnSyncImpl = spawnSync) {
-  try { const result = spawnSyncImpl(bin(), ["--version"], { encoding: "utf8", timeout: 15_000, shell: windows }); return result.status === 0 && /claude/i.test(String(result.stdout)); }
+  try { const [command, rest] = launch(["--version"]); const result = spawnSyncImpl(command, rest, { encoding: "utf8", timeout: 15_000, shell: windows, windowsHide: true }); return result.status === 0 && /claude/i.test(String(result.stdout)); }
   catch { return false; }
 }
 
@@ -68,7 +70,8 @@ export async function runClaudeTurn({ job, model, instructions, server, getDalgr
   writeFileSync(mcpFile, JSON.stringify({ mcpServers: { dalgrak: { type: "http", url: `${server}/api/mcp`, headers: { Authorization: `Bearer ${await getDalgrakToken()}` } } } }), { mode: 0o600 });
   let streamed = ""; let result = null; let stderr = ""; let timer;
   try {
-    const child = spawnImpl(bin(), quote(claudeArgs({ model, promptFile, mcpFile })), { cwd: dir, env: process.env, stdio: ["pipe", "pipe", "pipe"], shell: windows });
+    const [command, rest] = launch(claudeArgs({ model, promptFile, mcpFile }));
+    const child = spawnImpl(command, rest, { cwd: dir, env: process.env, stdio: ["pipe", "pipe", "pipe"], shell: windows, windowsHide: true });
     const abort = () => { try { child.kill(); } catch { /* 이미 꺼짐 */ } };
     signal?.addEventListener("abort", abort, { once: true });
     const exit = new Promise((resolve, reject) => { child.on("error", reject); child.on("exit", (code) => resolve(code)); });

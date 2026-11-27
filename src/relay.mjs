@@ -14,7 +14,8 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 export async function loadModels({ hasClaude = claudeAvailable(), hasChatgpt = openai.planEnabled() } = {}) {
   const preferred = process.env.DALGRAK_MODEL || read("settings.json")?.model;
   // ChatGPT 요금제와 Claude Code 가운데 이 컴퓨터에서 쓸 수 있는 것을 모두 보여준다.
-  const models = [...(hasChatgpt ? await listModels(await openai.accessToken()) : []), ...(hasClaude ? CLAUDE_MODELS : [])];
+  // Claude Code가 있으면 그쪽을 먼저 보여주고 기본으로 쓴다(로그인 증표를 이 앱이 맡지 않는 쪽이 먼저다).
+  const models = [...(hasClaude ? CLAUDE_MODELS : []), ...(hasChatgpt ? await listModels(await openai.accessToken()) : [])];
   if (!models.length) throw new TurnError("no_models", "쓸 수 있는 AI가 없어요. ChatGPT에 로그인하거나 Claude Code를 설치해주세요.");
   return { models, model: (models.find((m) => m.slug === preferred) ?? models[0]).slug };
 }
