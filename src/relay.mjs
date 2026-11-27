@@ -101,6 +101,7 @@ export async function serve({ version, log = console.log, signal }) {
   log(`준비됐어요. 모델: ${context.model} · 달그락 도구 ${context.tools.length}개${engine() === "codex" ? " · Codex로 코드·파일 작업" : ""}`);
   log("이 창을 켜 둔 동안 달그락 대장간(어느 기기에서든)에서 대화할 수 있어요.");
   let failures = 0;
+  let announced = null;
   while (!signal?.aborted) {
     try {
       const hello = { model: context.model, version, account: openai.account()?.email ?? (context.models.some((m) => isClaudeModel(m.slug)) ? "Claude Code" : null), models: context.models.slice(0, 40).map((m) => ({ slug: String(m.slug).slice(0, 80), name: String(m.name).slice(0, 80) })) };
@@ -108,7 +109,9 @@ export async function serve({ version, log = console.log, signal }) {
       if (response.status === 404) throw Object.assign(new Error("이 달그락 대장간 서버는 아직 화면 안 대화를 지원하지 않아요. 서버가 업데이트된 뒤 다시 켜주세요."), { code: "unsupported_server" });
       if (!response.ok) throw new Error(`poll ${response.status}`);
       failures = 0;
-      const { job } = await response.json();
+      const { job, account } = await response.json();
+      // 어느 달그락 계정에 붙어 있는지 한 번 알려 준다. 브라우저의 계정과 다르면 화면에는 꺼진 것으로 보인다.
+      if (account && account !== announced) { announced = account; log(`달그락 계정: ${account} · 브라우저에서 다른 계정으로 로그인했다면 화면에 연결이 보이지 않아요. 그때는 이 창을 닫고 'npx github:1dyne/dalgrak-helper logout' 뒤에 다시 켜 주세요.`); }
       if (!job) continue;
       // 서버의 도구나 규칙이 바뀌었을 수 있으니 가끔 다시 읽는다.
       if (Date.now() - preparedAt > 30 * 60_000) { try { context = await prepare(version); preparedAt = Date.now(); } catch { /* 이전 것을 쓴다 */ } }
